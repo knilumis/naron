@@ -2,16 +2,26 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>NARON DOJO</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div id="hud">
-    <div>WASD/Ok tuşları: hareket</div>
-    <div>R: reset</div>
+
+  <div id="ui">
+    <div id="top">
+      <div>YOU ❤️ <span id="php">5</span></div>
+      <div>AI ❤️ <span id="ehp">5</span></div>
+    </div>
+
+    <div id="cards">
+      <button data-card="push">Push</button>
+      <button data-card="pull">Pull</button>
+      <button data-card="throw">Throw</button>
+    </div>
   </div>
+
   <script src="game.js"></script>
 </body>
 </html>
