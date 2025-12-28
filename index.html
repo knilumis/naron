@@ -4,62 +4,103 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>NARON DOJO</title>
-  <link rel="stylesheet" href="style.css?v=4" />
+  <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
-  <canvas id="c"></canvas>
+  <div id="bg"></div>
 
-  <div id="ui">
-    <div id="top">
-      <div class="hp">SEN ❤️ <span id="php">5</span></div>
+  <main id="wrap">
+    <header id="top">
+      <div class="panel">
+        <div class="name">SEN</div>
+        <div class="hpRow"><div class="hpBar"><div id="hpP" class="hpFill"></div></div><div id="hpTxtP" class="hpTxt">5/5</div></div>
+      </div>
 
-      <div id="centerTop">
+      <div id="center">
         <div id="phase">Kart seç</div>
-        <div id="subline">
-          <span>Tur: <b id="turnNo">1</b></span>
-          <span class="dot">•</span>
-          <span>Süre: <b id="timer">8.0</b>s</span>
+        <div id="sub">
+          <span>Tur <b id="turnNo">1</b></span>
+          <span class="sep">•</span>
+          <span>Kalan <b id="timer">8</b>s</span>
         </div>
       </div>
 
-      <div class="hp">RAKİP ❤️ <span id="ehp">5</span></div>
-    </div>
-
-    <div id="mini">
-      <div class="choice">
-        <div class="label">Sen seçtin</div>
-        <div class="pill" id="pPick">—</div>
+      <div class="panel">
+        <div class="name">RAKİP</div>
+        <div class="hpRow"><div class="hpBar"><div id="hpE" class="hpFill"></div></div><div id="hpTxtE" class="hpTxt">5/5</div></div>
       </div>
-      <div class="choice">
-        <div class="label">Rakip seçti</div>
-        <div class="pill" id="ePick">—</div>
+    </header>
+
+    <section id="arena">
+        <!-- TUR SONUCU OVERLAY -->
+        <div id="overlay" class="hidden" aria-hidden="true">
+        <div class="overlayCard">
+            <div class="ovTitle">TUR SONUCU</div>
+
+            <div class="ovPick you">
+            <div class="ovName">SEN</div>
+            <div id="ovP" class="ovMove">—</div>
+            <div id="ovPEffect" class="ovEffect">—</div>
+            </div>
+
+
+            <div class="ovVs">VS</div>
+
+            <div class="ovPick foe">
+            <div class="ovName">RAKİP</div>
+            <div id="ovE" class="ovMove">—</div>
+            <div id="ovEEffect" class="ovEffect">—</div>
+            </div>
+
+
+            <div class="ovHint">5 saniye sonra yeni tur…</div>
+        </div>
+        </div>
+
+        
+      <div class="fighter you">
+        <div class="avatar">SEN</div>
+        <div id="lastP" class="last">—</div>
       </div>
-    </div>
 
-    <div id="log" aria-live="polite"></div>
+      <div id="vs">VS</div>
 
-    <div id="cards">
-      <button data-card="push">
-        <div class="cardTitle">İt</div>
-        <div class="cardDesc">Rakibi 1 hücre iter. Duvara çarparsa +1 hasar.</div>
-      </button>
+      <div class="fighter foe">
+        <div class="avatar">RAKİP</div>
+        <div id="lastE" class="last">—</div>
+      </div>
+    </section>
 
-      <button data-card="pull">
-        <div class="cardTitle">Çek</div>
-        <div class="cardDesc">Rakibi 1 hücre kendine çeker.</div>
-      </button>
 
-      <button data-card="throw">
-        <div class="cardTitle">At</div>
-        <div class="cardDesc">Bitişikse: +2 hasar ve 1 hücre itme.</div>
-      </button>
-    </div>
-
-    <div id="footerHint">
-      Amaç: Rakibi duvara çarptırıp canını bitir. Her tur 1 kart seç.
-    </div>
+    <div class="ovHint">5 saniye sonra yeni tur…</div>
   </div>
+</div>
 
-  <script src="game.js?v=4"></script>
+
+    <section id="log">Bir kart seç. Hepsi bu.</section>
+
+    <section id="cards">
+      <button class="card atk" data-card="attack">
+        <div class="title">SALDIR</div>
+        <div class="desc">Rakibe 2 hasar.</div>
+      </button>
+
+      <button class="card def" data-card="guard">
+        <div class="title">SAVUN</div>
+        <div class="desc">Bu tur gelen hasarı azalt.</div>
+      </button>
+
+      <button class="card heal" data-card="heal">
+        <div class="title">İYİLEŞ</div>
+        <div class="desc">1 can geri kazan.</div>
+      </button>
+    </section>
+
+    <footer id="hint">
+      Kural: Her tur 1 kart. Aynı anda çözülür.
+    </footer>
+  </main>
+
+  <script src="game.js?v=5"></script>
 </body>
 </html>

@@ -1,285 +1,306 @@
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
+const MAX_HP = 5;
+let turn = 1;
 
-function resize() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = innerWidth * dpr;
-  canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + "px";
-  canvas.style.height = innerHeight + "px";
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-addEventListener("resize", resize);
-resize();
+let phase = "PICK"; // PICK / RESOLVE / END
+let pickSeconds = 8;
+let timeLeft = pickSeconds;
+let busy = false;
+let lastTick = 0;
 
-/* --- UI refs --- */
-const php = document.getElementById("php");
-const ehp = document.getElementById("ehp");
-const phaseEl = document.getElementById("phase");
-const timerEl = document.getElementById("timer");
-const turnNoEl = document.getElementById("turnNo");
-const logEl = document.getElementById("log");
-const pPickEl = document.getElementById("pPick");
-const ePickEl = document.getElementById("ePick");
-const cardButtons = [...document.querySelectorAll("#cards button")];
+let player = { hp: MAX_HP };
+let enemy  = { hp: MAX_HP };
 
-const CARD = {
-  push: { tr: "İt" },
-  pull: { tr: "Çek" },
-  throw: { tr: "At" }
+const RESULT_HOLD_MS  = 5000;  // sonuç ekranda ne kadar kalsın
+
+const REVEAL_DELAY_MS = 1000;   // Rakibin kartı görünmeden önce bekleme
+const OVERLAY_HOLD_MS = 5000;  // Ortadaki VS ekranı ne kadar kalsın (önerim: 2500)
+const BETWEEN_TURNS_MS = 1000;  // Overlay kapandıktan sonra yeni tura geçmeden bekleme
+
+const el = {
+  phase: document.getElementById("phase"),
+  timer: document.getElementById("timer"),
+  turnNo: document.getElementById("turnNo"),
+  log: document.getElementById("log"),
+  hpP: document.getElementById("hpP"),
+  hpE: document.getElementById("hpE"),
+  hpTxtP: document.getElementById("hpTxtP"),
+  hpTxtE: document.getElementById("hpTxtE"),
+  lastP: document.getElementById("lastP"),
+  lastE: document.getElementById("lastE"),
+  cards: [...document.querySelectorAll("#cards .card")],
+  overlay: document.getElementById("overlay"),
+  ovP: document.getElementById("ovP"),
+  ovE: document.getElementById("ovE"),
+  ovPEffect: document.getElementById("ovPEffect"),
+  ovEEffect: document.getElementById("ovEEffect"),
+
+
+
 };
 
-/* --- GAME STATE --- */
-const CELLS = 7;
-let player, enemy;
+function showOverlay(pCard, eCard){
+  if (!el.overlay || !el.ovP || !el.ovE) return;
+  el.ovP.textContent = CARD[pCard].name;
+  el.ovE.textContent = CARD[eCard].name;
+  el.overlay.classList.remove("hidden");
+  el.overlay.setAttribute("aria-hidden", "false");
+  if (el.ovPEffect) el.ovPEffect.textContent = "—";
+  if (el.ovEEffect) el.ovEEffect.textContent = "—";
 
-let phase = "PICK";      // PICK -> RESOLVE -> (next PICK)
-let busy = false;
+}
 
-let turnNo = 1;
-let pickTime = 8.0;      // saniye
-let timeLeft = pickTime;
-let lastT = 0;
+function hideOverlay(){
+  if (!el.overlay) return;
+  el.overlay.classList.add("hidden");
+  el.overlay.setAttribute("aria-hidden", "true");
+}
 
-function reset() {
-  player = { pos: 1, hp: 5 };
-  enemy  = { pos: 5, hp: 5 };
 
-  turnNo = 1;
-  timeLeft = pickTime;
+
+const CARD = {
+  attack: { name: "SALDIR" },
+  guard:  { name: "SAVUN" },
+  heal:   { name: "İYİLEŞ" }
+};
+
+function setPhase(text){
+  el.phase.textContent = text;
+}
+
+function setLog(text){
+  el.log.textContent = text;
+}
+
+function clampHp(){
+  player.hp = Math.max(0, Math.min(MAX_HP, player.hp));
+  enemy.hp  = Math.max(0, Math.min(MAX_HP, enemy.hp));
+}
+
+function sync(){
+  el.turnNo.textContent = String(turn);
+  el.timer.textContent = String(Math.ceil(timeLeft));
+
+  el.hpTxtP.textContent = `${player.hp}/${MAX_HP}`;
+  el.hpTxtE.textContent = `${enemy.hp}/${MAX_HP}`;
+
+  el.hpP.style.width = `${(player.hp / MAX_HP) * 100}%`;
+  el.hpE.style.width = `${(enemy.hp / MAX_HP) * 100}%`;
+}
+
+function enableCards(on){
+  el.cards.forEach(b => b.disabled = !on);
+}
+
+function resetGame(){
+  turn = 1;
   phase = "PICK";
+  timeLeft = pickSeconds;
   busy = false;
+  player.hp = MAX_HP;
+  enemy.hp = MAX_HP;
 
-  pPickEl.textContent = "—";
-  ePickEl.textContent = "—";
-  setPhaseText("Kart seç");
-  setLog("Kart seçerek başla. (İt / Çek / At)");
-  syncHp();
-  setCardsEnabled(true);
-}
-reset();
+  el.lastP.textContent = "—";
+  el.lastE.textContent = "—";
 
-/* --- INPUT --- */
-cardButtons.forEach(btn => {
-  btn.addEventListener("click", () => {
-    if (busy || phase !== "PICK") return;
-    const c = btn.dataset.card;
-    doTurn(c);
-  });
-});
+  setPhase("Kart seç");
+  setLog("Bir kart seç. Hepsi bu.");
+  enableCards(true);
+  sync();
+  hideOverlay();
 
-/* --- PHASE UI --- */
-function setPhaseText(t) { phaseEl.textContent = t; }
-function setLog(t) { logEl.textContent = t; }
-function syncHp() {
-  php.textContent = player.hp;
-  ehp.textContent = enemy.hp;
-  turnNoEl.textContent = String(turnNo);
 }
 
-function setCardsEnabled(on) {
-  cardButtons.forEach(b => b.disabled = !on);
+function aiChoose(){
+  // Çok basit ve anlaşılır: düşük can = iyileşme eğilimi, aksi halde saldırı/savun karışık
+  if (enemy.hp <= 2 && Math.random() < 0.55) return "heal";
+  const r = Math.random();
+  if (r < 0.45) return "attack";
+  if (r < 0.75) return "guard";
+  return "heal";
 }
 
-/* --- AI --- */
-function aiChoose() {
-  const dist = Math.abs(enemy.pos - player.pos);
-  if (dist === 1) {
-    // bitişik: at daha olası
-    const r = Math.random();
-    if (r < 0.60) return "throw";
-    if (r < 0.85) return "push";
-    return "pull";
-  } else {
-    // uzak: çek ile yaklaştırmayı sever
-    return Math.random() < 0.55 ? "pull" : "push";
+/**
+ * Çözüm kuralı (basit):
+ * - SALDIR: 2 hasar
+ * - SAVUN: gelen hasarı 2 azaltır (minimum 0)
+ * - İYİLEŞ: +1 can
+ *
+ * Aynı anda çözülür:
+ * - Önce herkesin İYİLEŞ'i uygulanır
+ * - Sonra hasarlar hesaplanır (savunma varsa azaltır)
+ */
+function resolve(p, e){
+
+  let pEffect = "ETKİ YOK";
+  let eEffect = "ETKİ YOK";
+
+  // 1) heal first
+  if (p === "heal") player.hp += 1;
+  if (e === "heal") enemy.hp += 1;
+  clampHp();
+
+  // 2) compute damage
+  let dmgToE = (p === "attack") ? 2 : 0;
+  let dmgToP = (e === "attack") ? 2 : 0;
+
+  if (e === "guard") dmgToE = Math.max(0, dmgToE - 2);
+  if (p === "guard") dmgToP = Math.max(0, dmgToP - 2);
+
+  enemy.hp -= dmgToE;
+  player.hp -= dmgToP;
+  clampHp();
+
+  // Oyuncu efekti
+    if (p === "heal") pEffect = "+1 CAN";
+    else if (dmgToP > 0) pEffect = `-${dmgToP} CAN`;
+    else if (p === "guard") pEffect = "BLOKE";
+
+    // Rakip efekti
+    if (e === "heal") eEffect = "+1 CAN";
+    else if (dmgToE > 0) eEffect = `-${dmgToE} CAN`;
+    else if (e === "guard") eEffect = "BLOKE";
+
+
+  // 3) log (tek cümle, net)
+  const pName = CARD[p].name;
+  const eName = CARD[e].name;
+
+  let msg = `Sen ${pName}, rakip ${eName}. `;
+  const parts = [];
+
+  if (p === "heal") parts.push("Sen 1 can kazandın.");
+  if (e === "heal") parts.push("Rakip 1 can kazandı.");
+
+  if (dmgToE > 0) parts.push(`Rakıbe ${dmgToE} hasar verdin.`);
+  if (dmgToP > 0) parts.push(`(${dmgToP} hasar aldın.)`);
+
+  if (parts.length === 0) parts.push("Hasar yok.");
+
+  msg += parts.join(" ");
+  
+  return {
+  log: msg,
+  pEffect: pEffect,
+  eEffect: eEffect
+};
+
+  
+}
+
+function endIfNeeded(){
+  if (player.hp <= 0 || enemy.hp <= 0){
+    phase = "END";
+    enableCards(false);
+    if (enemy.hp <= 0 && player.hp > 0){
+      setPhase("Kazandın");
+      setLog("Kazandın. 1 saniye sonra yeni oyun.");
+    } else if (player.hp <= 0 && enemy.hp > 0){
+      setPhase("Kaybettin");
+      setLog("Kaybettin. 1 saniye sonra yeni oyun.");
+    } else {
+      setPhase("Berabere");
+      setLog("Berabere. 1 saniye sonra yeni oyun.");
+    }
+    sync();
+    setTimeout(resetGame, 1100);
+    return true;
   }
+  return false;
 }
 
-/* --- TURN --- */
-function doTurn(playerCard) {
+function doTurn(pCard, opts = { auto: false }) {
+  if (busy || phase !== "PICK") return;
   busy = true;
   phase = "RESOLVE";
-  setCardsEnabled(false);
-  setPhaseText("Çözülüyor…");
+  enableCards(false);
 
-  const enemyCard = aiChoose();
+  const eCard = aiChoose();
 
-  pPickEl.textContent = CARD[playerCard].tr;
-  ePickEl.textContent = "Gizli"; // önce gizleyelim
+  el.lastP.textContent = CARD[pCard].name;
+  el.lastE.textContent = "…";
 
-  // çözümle
-  const result = resolve(playerCard, enemyCard);
+  if (opts.auto) {
+    setPhase("Süre doldu");
+    setLog(`Süre bitti. Otomatik olarak ${CARD[pCard].name} seçildi…`);
+  } else {
+    setPhase("Çözülüyor");
+    setLog("Hamleler yapılıyor…");
+  }
 
-  // rakibi sonra göster (anlaşılır his)
-  setTimeout(() => { ePickEl.textContent = CARD[enemyCard].tr; }, 250);
-
-  // log'u yaz
-  setLog(result.log);
-  syncHp();
-
-  // tur biterken
+  // Rakibin kartını da göster, sonra sonucu hesapla
   setTimeout(() => {
-    if (player.hp <= 0 || enemy.hp <= 0) {
-      const win = enemy.hp <= 0 && player.hp > 0;
-      setPhaseText(win ? "Kazandın!" : "Kaybettin!");
-      setLog(win ? "Rakibi yendin. Yeni oyun başlıyor…" : "Yenildin. Yeni oyun başlıyor…");
-      setTimeout(reset, 900);
-      return;
-    }
+    el.lastE.textContent = CARD[eCard].name;
 
-    turnNo++;
-    timeLeft = pickTime;
-    phase = "PICK";
-    busy = false;
-    pPickEl.textContent = "—";
-    ePickEl.textContent = "—";
-    setPhaseText("Kart seç");
-    setCardsEnabled(true);
-  }, 600);
+    // Sonuç overlay'i aç
+    showOverlay(pCard, eCard);
+
+    // Sonucu hesapla ve altta yaz
+    const res = resolve(pCard, eCard);
+    setLog(res.log);
+
+    if (el.ovPEffect) el.ovPEffect.textContent = res.pEffect;
+    if (el.ovEEffect) el.ovEEffect.textContent = res.eEffect;
+
+    setPhase("Tur sonucu");
+
+    sync();
+
+    // 2 saniye bekle, sonra overlay kapanıp yeni tura geçsin
+    setTimeout(() => {
+    hideOverlay();
+
+    // Küçük bir nefes arası
+    setTimeout(() => {
+        if (endIfNeeded()) { busy = false; return; }
+
+        turn += 1;
+        timeLeft = pickSeconds;
+        phase = "PICK";
+        busy = false;
+
+        el.lastP.textContent = "—";
+        el.lastE.textContent = "—";
+        setPhase("Kart seç");
+        enableCards(true);
+        sync();
+    }, BETWEEN_TURNS_MS);
+
+    }, OVERLAY_HOLD_MS);
+
+
+  }, REVEAL_DELAY_MS);
+
 }
 
-/* --- RULES --- */
-function resolve(p, e) {
-  const dist = Math.abs(player.pos - enemy.pos);
-  let logParts = [];
 
-  // Atışlar (bitişikse)
-  if (p === "throw") {
-    if (dist === 1) {
-      enemy.hp -= 2;
-      pushEnemy(player.pos < enemy.pos ? 1 : -1);
-      logParts.push("Sen **At** yaptın: +2 hasar.");
-    } else {
-      logParts.push("Sen **At** denedin ama bitişik değildin.");
-    }
-  }
-
-  if (e === "throw") {
-    if (dist === 1) {
-      player.hp -= 2;
-      pushPlayer(enemy.pos < player.pos ? 1 : -1);
-      logParts.push("Rakip **At** yaptı: +2 hasar aldın.");
-    } else {
-      logParts.push("Rakip **At** denedi ama bitişik değildi.");
-    }
-  }
-
-  // İtme
-  if (p === "push") { pushEnemy(player.pos < enemy.pos ? 1 : -1); logParts.push("Sen **İt** yaptın."); }
-  if (e === "push") { pushPlayer(enemy.pos < player.pos ? 1 : -1); logParts.push("Rakip **İt** yaptı."); }
-
-  // Çekme
-  if (p === "pull") { moveEnemy(player.pos < enemy.pos ? -1 : 1); logParts.push("Sen **Çek** yaptın."); }
-  if (e === "pull") { movePlayer(enemy.pos < player.pos ? -1 : 1); logParts.push("Rakip **Çek** yaptı."); }
-
-  // duvar hasarı log’ları
-  if (lastWallHitEnemy) logParts.push("Rakip duvara çarptı: +1 hasar.");
-  if (lastWallHitPlayer) logParts.push("Sen duvara çarptın: +1 hasar.");
-
-  // sıfırla
-  const res = { log: logParts.join(" ") };
-  lastWallHitEnemy = false;
-  lastWallHitPlayer = false;
-  return res;
+function autoPick(){
+  // süre biterse sakin seçim: çoğunlukla savun
+  const r = Math.random();
+  if (r < 0.45) return "guard";
+  if (r < 0.80) return "attack";
+  return "heal";
 }
 
-let lastWallHitEnemy = false;
-let lastWallHitPlayer = false;
+function tick(t){
+  if (!lastTick) lastTick = t;
+  const dt = (t - lastTick) / 1000;
+  lastTick = t;
 
-function pushEnemy(dir) {
-  enemy.pos += dir;
-  if (enemy.pos <= 0 || enemy.pos >= CELLS - 1) { enemy.hp--; lastWallHitEnemy = true; }
-  enemy.pos = clamp(enemy.pos);
-}
-
-function pushPlayer(dir) {
-  player.pos += dir;
-  if (player.pos <= 0 || player.pos >= CELLS - 1) { player.hp--; lastWallHitPlayer = true; }
-  player.pos = clamp(player.pos);
-}
-
-function moveEnemy(dir) { enemy.pos = clamp(enemy.pos + dir); }
-function movePlayer(dir) { player.pos = clamp(player.pos + dir); }
-
-function clamp(p) { return Math.max(0, Math.min(CELLS - 1, p)); }
-
-/* --- TIMER LOOP --- */
-function tick(t) {
-  if (!lastT) lastT = t;
-  const dt = (t - lastT) / 1000;
-  lastT = t;
-
-  if (phase === "PICK" && !busy) {
+  if (phase === "PICK" && !busy){
     timeLeft -= dt;
-    if (timeLeft <= 0) {
+    if (timeLeft <= 0){
       timeLeft = 0;
-      // süre bitti: otomatik kart seç (oyun akmasın diye)
-      doTurn(autoPick());
+      doTurn(autoPick(), { auto: true });
     }
   }
 
-  timerEl.textContent = timeLeft.toFixed(1);
-
-  draw();
+  sync();
   requestAnimationFrame(tick);
 }
 
-function autoPick() {
-  // basit: rastgele ama "At" biraz daha az
-  const r = Math.random();
-  if (r < 0.40) return "push";
-  if (r < 0.80) return "pull";
-  return "throw";
-}
+el.cards.forEach(btn => {
+  btn.addEventListener("click", () => doTurn(btn.dataset.card));
+});
 
-/* --- RENDER --- */
-function draw() {
-  ctx.clearRect(0, 0, innerWidth, innerHeight);
-
-  const midY = innerHeight * 0.48;
-  const spacing = innerWidth / (CELLS + 1);
-
-  // hat
-  ctx.strokeStyle = "rgba(255,255,255,0.35)";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(spacing, midY);
-  ctx.lineTo(innerWidth - spacing, midY);
-  ctx.stroke();
-
-  // uçlar (duvar)
-  ctx.fillStyle = "rgba(255,255,255,0.15)";
-  ctx.fillRect(spacing - 10, midY - 26, 20, 52);
-  ctx.fillRect(innerWidth - spacing - 10, midY - 26, 20, 52);
-
-  // hücreler
-  for (let i = 0; i < CELLS; i++) {
-    const x = spacing * (i + 1);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.beginPath();
-    ctx.arc(x, midY, 6, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // oyuncular
-  drawFighter(player.pos, midY, spacing, "rgba(79,209,197,0.95)", "SEN");
-  drawFighter(enemy.pos, midY, spacing, "rgba(245,101,101,0.95)", "RAKİP");
-}
-
-function drawFighter(pos, y, spacing, color, label) {
-  const x = spacing * (pos + 1);
-
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y - 22, 16, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.textAlign = "center";
-  ctx.fillText(label, x, y + 12);
-  ctx.textAlign = "start";
-}
-
+resetGame();
 requestAnimationFrame(tick);
