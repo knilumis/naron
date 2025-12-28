@@ -4,24 +4,62 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>NARON DOJO</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
   <canvas id="c"></canvas>
 
   <div id="ui">
     <div id="top">
-      <div>YOU ❤️ <span id="php">5</span></div>
-      <div>AI ❤️ <span id="ehp">5</span></div>
+      <div class="hp">SEN ❤️ <span id="php">5</span></div>
+
+      <div id="centerTop">
+        <div id="phase">Kart seç</div>
+        <div id="subline">
+          <span>Tur: <b id="turnNo">1</b></span>
+          <span class="dot">•</span>
+          <span>Süre: <b id="timer">8.0</b>s</span>
+        </div>
+      </div>
+
+      <div class="hp">RAKİP ❤️ <span id="ehp">5</span></div>
     </div>
 
+    <div id="mini">
+      <div class="choice">
+        <div class="label">Sen seçtin</div>
+        <div class="pill" id="pPick">—</div>
+      </div>
+      <div class="choice">
+        <div class="label">Rakip seçti</div>
+        <div class="pill" id="ePick">—</div>
+      </div>
+    </div>
+
+    <div id="log" aria-live="polite"></div>
+
     <div id="cards">
-      <button data-card="push">Push</button>
-      <button data-card="pull">Pull</button>
-      <button data-card="throw">Throw</button>
+      <button data-card="push">
+        <div class="cardTitle">İt</div>
+        <div class="cardDesc">Rakibi 1 hücre iter. Duvara çarparsa +1 hasar.</div>
+      </button>
+
+      <button data-card="pull">
+        <div class="cardTitle">Çek</div>
+        <div class="cardDesc">Rakibi 1 hücre kendine çeker.</div>
+      </button>
+
+      <button data-card="throw">
+        <div class="cardTitle">At</div>
+        <div class="cardDesc">Bitişikse: +2 hasar ve 1 hücre itme.</div>
+      </button>
+    </div>
+
+    <div id="footerHint">
+      Amaç: Rakibi duvara çarptırıp canını bitir. Her tur 1 kart seç.
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=4"></script>
 </body>
 </html>
