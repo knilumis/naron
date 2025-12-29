@@ -29,6 +29,7 @@ class MainScene extends Phaser.Scene {
     this.inventory = { odun: 0, tas: 0 };
 
     // Karakter texture/anim
+    this.makeBagIcon();
     this.makePlayerTextures();
 
     // Map üret
@@ -100,24 +101,48 @@ class MainScene extends Phaser.Scene {
     this.harvestBtn.on("pointerup", () => this.cancelHarvestHold());
     this.harvestBtn.on("pointerout", () => this.cancelHarvestHold());
 
-    // UI: Envanter (I)
-    this.invBtn = this.add.text(0, 0, "Envanter (I)", {
+    // UI: Envanter (I) — çanta ikonlu
+    this.invBtn = this.add.container(0, 0).setScrollFactor(0).setDepth(9999);
+    this.invBtnBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.45).setOrigin(0, 0);
+    this.bagSprite = this.add.image(10, 8, "bag_icon").setOrigin(0, 0).setScale(1);
+    this.invText = this.add.text(32, 8, "Envanter (I)", {
       fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
       fontSize: "16px",
       color: "#ffffff",
-      backgroundColor: "rgba(0,0,0,0.45)",
-      padding: { left: 12, right: 12, top: 8, bottom: 8 }
-    });
-    this.invBtn.setScrollFactor(0);
-    this.invBtn.setDepth(9999);
-    this.invBtn.setInteractive({ useHandCursor: true });
+    }).setOrigin(0, 0);
+
+    this.invBtn.add([this.invBtnBg, this.bagSprite, this.invText]);
+
+    // container tıklanabilir
+    this.invBtn.setSize(32 + this.invText.width + 12, 32);
+    this.invBtn.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, this.invBtn.width, this.invBtn.height),
+      Phaser.Geom.Rectangle.Contains
+    );
     this.invBtn.on("pointerdown", () => this.toggleInventory());
 
-    // Progress bar (hold)
+    // Progress bar (hold) — TOPLA üstünde
     this.holdBg = this.add.rectangle(0, 0, 120, 10, 0x000000, 0.5).setOrigin(0, 0);
     this.holdFill = this.add.rectangle(0, 0, 0, 10, 0xffffff, 0.85).setOrigin(0, 0);
     this.holdBg.setScrollFactor(0).setDepth(9999).setVisible(false);
     this.holdFill.setScrollFactor(0).setDepth(10000).setVisible(false);
+
+    // Toplama göstergesi (oyuncu üstünde) — dönen halka + yazı
+    this.harvestIndicator = this.add.container(0, 0);
+    this.harvestIndicator.setDepth(9998);
+    this.harvestIndicator.setVisible(false);
+
+    this.harvestRing = this.add.graphics();
+    this.harvestLabel = this.add.text(0, 12, "Toplanıyor...", {
+      fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      fontSize: "12px",
+      color: "#ffffff",
+      backgroundColor: "rgba(0,0,0,0.35)",
+      padding: { left: 6, right: 6, top: 3, bottom: 3 }
+    }).setOrigin(0.5, 0.5);
+
+    this.harvestIndicator.add([this.harvestRing, this.harvestLabel]);
+    this.harvestRingAngle = 0;
 
     this.positionUI();
 
@@ -145,6 +170,7 @@ class MainScene extends Phaser.Scene {
 
     // Hold state
     this.harvestHold = null;
+    this.harvestHoldEvent = null;
   }
 
   positionUI() {
@@ -153,6 +179,12 @@ class MainScene extends Phaser.Scene {
     // Envanter sağ üst
     this.invBtn.x = this.scale.width - this.invBtn.width - pad;
     this.invBtn.y = pad;
+
+    // Arka planı container boyutuna uydur
+    if (this.invBtnBg) {
+      this.invBtnBg.width = this.invBtn.width;
+      this.invBtnBg.height = this.invBtn.height;
+    }
 
     // TOPLA sağ alt
     this.harvestBtn.x = this.scale.width - this.harvestBtn.width - pad;
@@ -217,6 +249,10 @@ class MainScene extends Phaser.Scene {
     this.holdFill.setVisible(true);
     this.holdFill.width = 0;
 
+    // Görsel gösterge aç
+    this.harvestIndicator.setVisible(true);
+    this.harvestRingAngle = 0;
+
     // 1 sn sonra bitir
     this.harvestHoldEvent = this.time.addEvent({
       delay: this.HARVEST_HOLD_MS,
@@ -238,6 +274,10 @@ class MainScene extends Phaser.Scene {
     this.holdBg.setVisible(false);
     this.holdFill.setVisible(false);
     this.holdFill.width = 0;
+
+    // Görsel gösterge kapat
+    this.harvestIndicator.setVisible(false);
+    this.harvestRing.clear();
   }
 
   finishHarvestHold() {
@@ -245,7 +285,7 @@ class MainScene extends Phaser.Scene {
 
     const { targetX, targetY, tileType } = this.harvestHold;
 
-    // Hedef hala aynı mı? (başka şeye döndüyse iptal)
+    // Hedef hala aynı mı?
     if (this.map[targetY]?.[targetX] !== tileType) {
       this.cancelHarvestHold();
       return;
@@ -308,7 +348,6 @@ class MainScene extends Phaser.Scene {
   }
 
   playSwing(tileType) {
-    // Kısa tween: sağa/sola “sallama”
     const dir = this.player.lastDir || "down";
     const sign = (dir === "left" || dir === "up") ? -1 : 1;
 
@@ -434,6 +473,36 @@ class MainScene extends Phaser.Scene {
 
     this.invList.appendChild(row("Odun", this.inventory.odun));
     this.invList.appendChild(row("Taş", this.inventory.tas));
+  }
+
+  /* ---------------- ICON TEXTURE ---------------- */
+
+  makeBagIcon() {
+    if (this.textures.exists("bag_icon")) return;
+
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+    g.clear();
+
+    // Çanta gövdesi
+    g.fillStyle(0x8b6b3f, 1);
+    g.fillRect(3, 5, 10, 9);
+
+    // Kapak
+    g.fillStyle(0xa68455, 1);
+    g.fillRect(3, 5, 10, 3);
+
+    // Sap
+    g.lineStyle(2, 0xd2b48c, 1);
+    g.beginPath();
+    g.arc(8, 5, 4, Math.PI, 0, false);
+    g.strokePath();
+
+    // Kilit
+    g.fillStyle(0x2b2b2b, 0.9);
+    g.fillRect(7, 9, 2, 2);
+
+    g.generateTexture("bag_icon", 16, 16);
+    g.destroy();
   }
 
   /* ---------------- OVERWORLD GENERATOR ---------------- */
@@ -896,13 +965,28 @@ class MainScene extends Phaser.Scene {
   /* ---------------- UPDATE ---------------- */
 
   update() {
-    // Hold progress bar güncelle
+    // Hold progress + spinner güncelle
     if (this.harvestHold) {
       const t = this.time.now - this.harvestHold.startTime;
       const p = Phaser.Math.Clamp(t / this.HARVEST_HOLD_MS, 0, 1);
       this.holdFill.width = Math.floor(120 * p);
 
-      // Eğer oyuncu hareket edip hedef değiştiyse iptal (Stardew hissi)
+      // Oyuncunun üstünde dönen halka
+      this.harvestIndicator.x = this.player.x;
+      this.harvestIndicator.y = this.player.y - 18;
+
+      this.harvestRingAngle += 0.25;
+      const r = 10;
+      const start = this.harvestRingAngle;
+      const end = start + Math.PI * 1.35;
+
+      this.harvestRing.clear();
+      this.harvestRing.lineStyle(3, 0xffffff, 0.9);
+      this.harvestRing.beginPath();
+      this.harvestRing.arc(0, 0, r, start, end, false);
+      this.harvestRing.strokePath();
+
+      // Hedef değiştiyse iptal
       const cur = this.getHarvestTarget();
       if (!cur || cur.x !== this.harvestHold.targetX || cur.y !== this.harvestHold.targetY) {
         this.cancelHarvestHold();
