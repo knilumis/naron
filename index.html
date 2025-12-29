@@ -3,104 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>NARON DOJO</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <title>NARON</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0f14; overflow: hidden; }
+    canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
+  </style>
 </head>
 <body>
-  <div id="bg"></div>
-
-  <main id="wrap">
-    <header id="top">
-      <div class="panel">
-        <div class="name">SEN</div>
-        <div class="hpRow"><div class="hpBar"><div id="hpP" class="hpFill"></div></div><div id="hpTxtP" class="hpTxt">5/5</div></div>
-      </div>
-
-      <div id="center">
-        <div id="phase">Kart seç</div>
-        <div id="sub">
-          <span>Tur <b id="turnNo">1</b></span>
-          <span class="sep">•</span>
-          <span>Kalan <b id="timer">8</b>s</span>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="name">RAKİP</div>
-        <div class="hpRow"><div class="hpBar"><div id="hpE" class="hpFill"></div></div><div id="hpTxtE" class="hpTxt">5/5</div></div>
-      </div>
-    </header>
-
-    <section id="arena">
-        <!-- TUR SONUCU OVERLAY -->
-        <div id="overlay" class="hidden" aria-hidden="true">
-        <div class="overlayCard">
-            <div class="ovTitle">TUR SONUCU</div>
-
-            <div class="ovPick you">
-            <div class="ovName">SEN</div>
-            <div id="ovP" class="ovMove">—</div>
-            <div id="ovPEffect" class="ovEffect">—</div>
-            </div>
-
-
-            <div class="ovVs">VS</div>
-
-            <div class="ovPick foe">
-            <div class="ovName">RAKİP</div>
-            <div id="ovE" class="ovMove">—</div>
-            <div id="ovEEffect" class="ovEffect">—</div>
-            </div>
-
-
-            <div class="ovHint">5 saniye sonra yeni tur…</div>
-        </div>
-        </div>
-
-        
-      <div class="fighter you">
-        <div class="avatar">SEN</div>
-        <div id="lastP" class="last">—</div>
-      </div>
-
-      <div id="vs">VS</div>
-
-      <div class="fighter foe">
-        <div class="avatar">RAKİP</div>
-        <div id="lastE" class="last">—</div>
-      </div>
-    </section>
-
-
-    <div class="ovHint">5 saniye sonra yeni tur…</div>
-  </div>
-</div>
-
-
-    <section id="log">Bir kart seç. Hepsi bu.</section>
-
-    <section id="cards">
-      <button class="card atk" data-card="attack">
-        <div class="title">SALDIR</div>
-        <div class="desc">Rakibe 2 hasar.</div>
-      </button>
-
-      <button class="card def" data-card="guard">
-        <div class="title">SAVUN</div>
-        <div class="desc">Bu tur gelen hasarı azalt.</div>
-      </button>
-
-      <button class="card heal" data-card="heal">
-        <div class="title">İYİLEŞ</div>
-        <div class="desc">1 can geri kazan.</div>
-      </button>
-    </section>
-
-    <footer id="hint">
-      Kural: Her tur 1 kart. Aynı anda çözülür.
-    </footer>
-  </main>
-
-  <script src="game.js?v=5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="game.js?v=1"></script>
 </body>
 </html>
