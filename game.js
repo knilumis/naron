@@ -1,6 +1,7 @@
 class MainScene extends Phaser.Scene {
   constructor() {
     super("main");
+
     this.speed = 140;
 
     // Tile ayarları
@@ -26,13 +27,24 @@ class MainScene extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
 
     // Envanter
-    this.inventory = { odun: 0, tas: 0 };
+    this.inventory = { odun: 0, tas: 0, altin: 0 };
 
-    // Karakter texture/anim
+    // Quest (7)
+    this.quest = {
+      id: "odun_5",
+      title: "Görev: 5 Odun topla",
+      resource: "odun",
+      target: 5,
+      progress: 0,
+      rewardAltin: 10,
+      completed: false,
+    };
+
+    // UI ikon/texture
     this.makeBagIcon();
     this.makePlayerTextures();
 
-    // Map üret
+    // Map
     this.map = this.generateOverworld(this.MAP_W, this.MAP_H);
 
     // Çiz
@@ -44,11 +56,11 @@ class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldW, worldH);
 
     // Collider grupları
-    this.walls = this.physics.add.staticGroup();      // kalıcı: su/bina/çit
-    this.resources = this.physics.add.staticGroup();  // kırılabilir: ağaç/taş
+    this.walls = this.physics.add.staticGroup();      // su/bina/çit
+    this.resources = this.physics.add.staticGroup();  // ağaç/taş
 
-    this.buildSolidColliders(this.map);        // 2,4,6
-    this.buildResourceColliders(this.map);     // 3,7
+    this.buildSolidColliders(this.map);    // 2,4,6
+    this.buildResourceColliders(this.map); // 3,7
 
     // Spawn
     const spawn = this.spawn || { x: 10, y: 10 };
@@ -69,7 +81,7 @@ class MainScene extends Phaser.Scene {
     this.cameras.main.setZoom(this.getZoomForScreen());
     this.cameras.main.setBounds(0, 0, worldW, worldH);
 
-    // Input (klavye)
+    // Input
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D");
 
@@ -82,7 +94,7 @@ class MainScene extends Phaser.Scene {
     this.invKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I);
     this.invKey.on("down", () => this.toggleInventory());
 
-    // Mobil: sol tarafta sürükle
+    // Mobil hareket: sol tarafta sürükle
     this.pointer = { active: false, startX: 0, startY: 0, dx: 0, dy: 0 };
     this.setupTouchMove();
 
@@ -101,25 +113,31 @@ class MainScene extends Phaser.Scene {
     this.harvestBtn.on("pointerup", () => this.cancelHarvestHold());
     this.harvestBtn.on("pointerout", () => this.cancelHarvestHold());
 
-    // UI: Envanter (I) — çanta ikonlu
+
+    // UI: Envanter (ikon + alt yazı)
     this.invBtn = this.add.container(0, 0).setScrollFactor(0).setDepth(9999);
-    this.invBtnBg = this.add.rectangle(0, 0, 10, 10, 0x000000, 0.45).setOrigin(0, 0);
-    this.bagSprite = this.add.image(10, 8, "bag_icon").setOrigin(0, 0).setScale(1);
-    this.invText = this.add.text(32, 8, "Envanter (I)", {
+
+    this.invBtnBg = this.add.rectangle(0, 0, 44, 44, 0x000000, 0.45).setOrigin(0, 0);
+    this.invBtnBorder = this.add.rectangle(0, 0, 44, 44, 0xffffff, 0.10).setOrigin(0, 0);
+    this.bagSprite = this.add.image(22, 22, "bag_icon").setOrigin(0.5, 0.5).setScale(1.1);
+
+    // Alt yazı (Envanter (I))
+    this.invBtnLabel = this.add.text(22, 52, "Envanter (I)", {
       fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-      fontSize: "16px",
-      color: "#ffffff",
-    }).setOrigin(0, 0);
+      fontSize: "12px",
+      color: "rgba(255,255,255,0.92)",
+      backgroundColor: "rgba(0,0,0,0.25)",
+      padding: { left: 6, right: 6, top: 3, bottom: 3 }
+    }).setOrigin(0.5, 0);
 
-    this.invBtn.add([this.invBtnBg, this.bagSprite, this.invText]);
+    this.invBtn.add([this.invBtnBg, this.invBtnBorder, this.bagSprite, this.invBtnLabel]);
 
-    // container tıklanabilir
-    this.invBtn.setSize(32 + this.invText.width + 12, 32);
-    this.invBtn.setInteractive(
-      new Phaser.Geom.Rectangle(0, 0, this.invBtn.width, this.invBtn.height),
-      Phaser.Geom.Rectangle.Contains
-    );
+    // Hem ikon hem yazı tıklanabilir olsun
+    this.invBtn.setSize(44, 70);
+    this.invBtn.setInteractive(new Phaser.Geom.Rectangle(0, 0, 44, 70), Phaser.Geom.Rectangle.Contains);
     this.invBtn.on("pointerdown", () => this.toggleInventory());
+
+    
 
     // Progress bar (hold) — TOPLA üstünde
     this.holdBg = this.add.rectangle(0, 0, 120, 10, 0x000000, 0.5).setOrigin(0, 0);
@@ -127,7 +145,7 @@ class MainScene extends Phaser.Scene {
     this.holdBg.setScrollFactor(0).setDepth(9999).setVisible(false);
     this.holdFill.setScrollFactor(0).setDepth(10000).setVisible(false);
 
-    // Toplama göstergesi (oyuncu üstünde) — dönen halka + yazı
+    // Toplama göstergesi (oyuncu üstünde) — dönen halka + küçük yazı
     this.harvestIndicator = this.add.container(0, 0);
     this.harvestIndicator.setDepth(9998);
     this.harvestIndicator.setVisible(false);
@@ -135,31 +153,85 @@ class MainScene extends Phaser.Scene {
     this.harvestRing = this.add.graphics();
     this.harvestLabel = this.add.text(0, 12, "Toplanıyor...", {
       fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-      fontSize: "12px",
+      fontSize: "10px",
       color: "#ffffff",
-      backgroundColor: "rgba(0,0,0,0.35)",
-      padding: { left: 6, right: 6, top: 3, bottom: 3 }
+      backgroundColor: "rgba(0,0,0,0.30)",
+      padding: { left: 4, right: 4, top: 2, bottom: 2 }
     }).setOrigin(0.5, 0.5);
 
     this.harvestIndicator.add([this.harvestRing, this.harvestLabel]);
     this.harvestRingAngle = 0;
 
+    // (3) Yakınlık ipucu: “E - Topla”
+    this.interactHint = this.add.text(0, 0, "E - Topla", {
+      fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      fontSize: "12px",
+      color: "#ffffff",
+      backgroundColor: "rgba(0,0,0,0.35)",
+      padding: { left: 6, right: 6, top: 3, bottom: 3 }
+    }).setOrigin(0.5, 0.5);
+    this.interactHint.setDepth(9998);
+    this.interactHint.setVisible(false);
+
+    // (7) Görev UI
+    this.questText = this.add.text(0, 0, "", {
+      fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      fontSize: "14px",
+      color: "#ffffff",
+      backgroundColor: "rgba(0,0,0,0.35)",
+      padding: { left: 10, right: 10, top: 8, bottom: 8 },
+      align: "left",
+      wordWrap: { width: 240, useAdvancedWrap: true }
+    });
+    this.questText.setScrollFactor(0);
+    this.questText.setDepth(20000); // UI üstünde kalsın
+    this.questText.setStroke("rgba(0,0,0,0.8)", 4);
+
+
     this.positionUI();
+
+        // --- UI Camera: UI zoom’dan etkilenmesin ---
+    this.uiCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+    this.uiCam.setScroll(0, 0);
+    this.uiCam.setZoom(1);
+
+    // UI’ları ana kameradan gizle
+    this.cameras.main.ignore([
+      this.invBtn,
+      this.harvestBtn,
+      this.holdBg,
+      this.holdFill,
+      this.questText
+    ]);
+
+    // Dünya objelerini UI kameradan gizle
+    // (worldG ve player kesin; ayrıca collider rectangle’lar da görünmez ama güvenli olsun)
+    this.uiCam.ignore([
+      this.worldG,
+      this.player,
+      ...this.walls.getChildren(),
+      ...this.resources.getChildren()
+    ]);
+
 
     window.addEventListener("resize", () => {
       this.cameras.main.setZoom(this.getZoomForScreen());
       this.positionUI();
+      if (this.uiCam) {
+        this.uiCam.setSize(this.scale.width, this.scale.height);
+      }
+
     });
 
     // HTML Envanter overlay
     this.createInventoryOverlay();
 
-    // HUD (kısa)
+    // HUD (debug gibi)
     this.hud = document.createElement("div");
     this.hud.style.position = "fixed";
     this.hud.style.left = "12px";
     this.hud.style.top = "12px";
-    this.hud.style.color = "rgba(255,255,255,0.85)";
+    this.hud.style.color = "rgba(255,255,255,0.0)"; // görünmesin (istersen 0.85 yap)
     this.hud.style.fontFamily = "system-ui, -apple-system, Segoe UI, Roboto, Arial";
     this.hud.style.fontSize = "14px";
     this.hud.style.userSelect = "none";
@@ -171,20 +243,20 @@ class MainScene extends Phaser.Scene {
     // Hold state
     this.harvestHold = null;
     this.harvestHoldEvent = null;
+
+    // Görev metnini bas
+    this.refreshQuestUI();
+
+    // “topla başladı / bitti” için mini sesler (1)
+    this.audioCtx = null;
   }
 
   positionUI() {
     const pad = 12;
 
-    // Envanter sağ üst
+    // Envanter sağ üst (küçük kare ikon)
     this.invBtn.x = this.scale.width - this.invBtn.width - pad;
     this.invBtn.y = pad;
-
-    // Arka planı container boyutuna uydur
-    if (this.invBtnBg) {
-      this.invBtnBg.width = this.invBtn.width;
-      this.invBtnBg.height = this.invBtn.height;
-    }
 
     // TOPLA sağ alt
     this.harvestBtn.x = this.scale.width - this.harvestBtn.width - pad;
@@ -195,6 +267,13 @@ class MainScene extends Phaser.Scene {
     this.holdBg.y = this.harvestBtn.y - 16;
     this.holdFill.x = this.holdBg.x;
     this.holdFill.y = this.holdBg.y;
+
+
+    // Görev: envanterin altında, sağ üstte, ekrandan taşmayacak şekilde
+    const questW = 260;
+    this.questText.x = Math.max(pad, this.scale.width - questW - pad);
+    this.questText.y = this.invBtn.y + this.invBtn.height + 10;
+
   }
 
   getZoomForScreen() {
@@ -207,6 +286,7 @@ class MainScene extends Phaser.Scene {
   /* ---------------- MOVE TOUCH ---------------- */
   setupTouchMove() {
     this.input.on("pointerdown", (p) => {
+      // sağ tarafta UI var diye sol taraf joystick gibi
       if (p.x > this.scale.width * 0.6) return;
       this.pointer.active = true;
       this.pointer.startX = p.x;
@@ -226,8 +306,42 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  /* ---------------- HOLD TO HARVEST ---------------- */
+  /* ---------------- (1) SFX: minimal beep ---------------- */
+  ensureAudio() {
+    if (this.audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    this.audioCtx = new Ctx();
+  }
 
+  playBeep(freq, ms, gain = 0.03) {
+    this.ensureAudio();
+    if (!this.audioCtx) return;
+
+    // iOS/Chrome policy: user gesture sonrası çalışır; biz pointerdown/keydown içinde çağırıyoruz.
+    try {
+      const ctx = this.audioCtx;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+
+      o.type = "square";
+      o.frequency.value = freq;
+      g.gain.value = gain;
+
+      o.connect(g);
+      g.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+      o.start(now);
+      o.stop(now + ms / 1000);
+
+      // kısa fade
+      g.gain.setValueAtTime(gain, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + ms / 1000);
+    } catch (_) {}
+  }
+
+  /* ---------------- HOLD TO HARVEST ---------------- */
   beginHarvestHold(source) {
     // Zaten hold varsa yeniden başlatma
     if (this.harvestHold) return;
@@ -235,6 +349,9 @@ class MainScene extends Phaser.Scene {
     // Hedef tile’ı hold başında “kilitle”
     const target = this.getHarvestTarget();
     if (!target) return;
+
+    // (1) başlama beep
+    this.playBeep(520, 60, 0.025);
 
     this.harvestHold = {
       source,
@@ -291,13 +408,10 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    // Swing animasyonu
+    // Swing + harvest
     this.playSwing(tileType);
-
-    // Asıl harvest
     this.doHarvestAt(targetX, targetY, tileType);
 
-    // Hold state sıfırla
     this.cancelHarvestHold();
   }
 
@@ -324,11 +438,46 @@ class MainScene extends Phaser.Scene {
     return { x: tx, y: ty, tileType: tile };
   }
 
+  // (1) popup
+  spawnLootPopup(text) {
+    const t = this.add.text(this.player.x, this.player.y - 22, text, {
+      fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      fontSize: "12px",
+      color: "#ffffff",
+      backgroundColor: "rgba(0,0,0,0.35)",
+      padding: { left: 6, right: 6, top: 3, bottom: 3 }
+    }).setOrigin(0.5, 0.5);
+    t.setDepth(9998);
+
+    this.tweens.add({
+      targets: t,
+      y: t.y - 18,
+      alpha: 0,
+      duration: 800,
+      ease: "Quad.easeOut",
+      onComplete: () => t.destroy()
+    });
+  }
+
   doHarvestAt(tx, ty, tileType) {
-    // envanter
-    if (tileType === 3) this.inventory.odun += 1;
-    if (tileType === 7) this.inventory.tas += 1;
+    let lootText = "";
+
+    if (tileType === 3) {
+      this.inventory.odun += 1;
+      lootText = "+1 Odun";
+      // (7) quest ilerlet
+      this.advanceQuest("odun", 1);
+    } else if (tileType === 7) {
+      this.inventory.tas += 1;
+      lootText = "+1 Taş";
+      // ileride taş görevi koyarsın
+    }
+
     this.updateInventoryOverlay();
+
+    // (1) başarı beep + popup
+    this.playBeep(760, 70, 0.03);
+    if (lootText) this.spawnLootPopup(lootText);
 
     // Haritadan kaldır
     this.map[ty][tx] = 0;
@@ -347,11 +496,10 @@ class MainScene extends Phaser.Scene {
     this.scheduleRespawn(tx, ty, tileType, delay);
   }
 
-  playSwing(tileType) {
+  playSwing() {
     const dir = this.player.lastDir || "down";
     const sign = (dir === "left" || dir === "up") ? -1 : 1;
 
-    // Slash efekti
     const slash = this.add.rectangle(this.player.x, this.player.y, 14, 3, 0xffffff, 0.9);
     slash.setAngle(20 * sign);
     this.tweens.add({
@@ -361,7 +509,6 @@ class MainScene extends Phaser.Scene {
       onComplete: () => slash.destroy()
     });
 
-    // Player swing
     this.tweens.add({
       targets: this.player,
       angle: 15 * sign,
@@ -372,8 +519,48 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  /* ---------------- INVENTORY UI (HTML overlay) ---------------- */
+  /* ---------------- (7) QUEST ---------------- */
+  advanceQuest(resource, amount) {
+    console.log("QUEST ADVANCE:", resource, amount, "=>", this.quest?.progress, "/", this.quest?.target);
 
+    if (!this.quest || this.quest.completed) return;
+    if (this.quest.resource !== resource) return;
+
+    this.quest.progress = Math.min(this.quest.target, this.quest.progress + amount);
+    this.refreshQuestUI();
+
+    if (this.quest.progress >= this.quest.target) {
+      this.quest.completed = true;
+      this.inventory.altin += this.quest.rewardAltin;
+      this.updateInventoryOverlay();
+
+      this.spawnLootPopup(`Görev tamam! +${this.quest.rewardAltin} Altın`);
+      this.playBeep(980, 90, 0.035);
+
+      this.refreshQuestUI();
+    }
+  }
+
+  refreshQuestUI() {
+    if (!this.questText) return;
+
+    if (!this.quest) {
+      this.questText.setText("");
+      return;
+    }
+
+    if (this.quest.completed) {
+      this.questText.setText(
+        `${this.quest.title}\nTamamlandı ✓  (+${this.quest.rewardAltin} Altın)`
+      );
+    } else {
+      this.questText.setText(
+        `${this.quest.title}\n(${this.quest.progress}/${this.quest.target})  Ödül: ${this.quest.rewardAltin} Altın`
+      );
+    }
+  }
+
+  /* ---------------- INVENTORY UI (HTML overlay) ---------------- */
   createInventoryOverlay() {
     this.invOpen = false;
 
@@ -431,7 +618,6 @@ class MainScene extends Phaser.Scene {
     this.invOverlay.appendChild(this.invPanel);
     document.body.appendChild(this.invOverlay);
 
-    // Panel dışına tıkla kapansın
     this.invOverlay.addEventListener("mousedown", (e) => {
       if (e.target === this.invOverlay) this.toggleInventory(false);
     });
@@ -471,33 +657,29 @@ class MainScene extends Phaser.Scene {
       return r;
     };
 
+    this.invList.appendChild(row("Altın", this.inventory.altin));
     this.invList.appendChild(row("Odun", this.inventory.odun));
     this.invList.appendChild(row("Taş", this.inventory.tas));
   }
 
   /* ---------------- ICON TEXTURE ---------------- */
-
   makeBagIcon() {
     if (this.textures.exists("bag_icon")) return;
 
     const g = this.make.graphics({ x: 0, y: 0, add: false });
     g.clear();
 
-    // Çanta gövdesi
     g.fillStyle(0x8b6b3f, 1);
     g.fillRect(3, 5, 10, 9);
 
-    // Kapak
     g.fillStyle(0xa68455, 1);
     g.fillRect(3, 5, 10, 3);
 
-    // Sap
     g.lineStyle(2, 0xd2b48c, 1);
     g.beginPath();
     g.arc(8, 5, 4, Math.PI, 0, false);
     g.strokePath();
 
-    // Kilit
     g.fillStyle(0x2b2b2b, 0.9);
     g.fillRect(7, 9, 2, 2);
 
@@ -506,7 +688,6 @@ class MainScene extends Phaser.Scene {
   }
 
   /* ---------------- OVERWORLD GENERATOR ---------------- */
-
   generateOverworld(w, h) {
     const m = Array.from({ length: h }, () => Array(w).fill(0)); // çim
 
@@ -518,7 +699,7 @@ class MainScene extends Phaser.Scene {
     }
     this.smooth(m, 2, 2);
 
-    // Kasaba merkezi + yollar
+    // Kasaba + yollar
     const townX = Math.floor(w * 0.35);
     const townY = Math.floor(h * 0.55);
     this.carveRect(m, townX - 6, townY - 4, 12, 8, 1);
@@ -709,7 +890,6 @@ class MainScene extends Phaser.Scene {
   }
 
   /* ---------------- DRAW ---------------- */
-
   drawOverworld(m) {
     this.worldG = this.add.graphics();
     this.drawOverworldTo(this.worldG, m);
@@ -722,7 +902,7 @@ class MainScene extends Phaser.Scene {
     g.fillStyle(0x0e2a1a, 1);
     g.fillRect(0, 0, this.MAP_W * ts, this.MAP_H * ts);
 
-    // Çim dokusu
+    // çim dokusu
     g.fillStyle(0x12351f, 1);
     for (let i = 0; i < 3500; i++) {
       const x = this.randInt(0, this.MAP_W * ts - 1);
@@ -793,10 +973,13 @@ class MainScene extends Phaser.Scene {
     if (this.worldG) this.worldG.destroy();
     this.worldG = this.add.graphics();
     this.drawOverworldTo(this.worldG, this.map);
+    if (this.uiCam) {
+      this.uiCam.ignore(this.worldG);
+    }
+
   }
 
   /* ---------------- COLLIDERS ---------------- */
-
   buildSolidColliders(m) {
     const solid = new Set([2, 4, 6]); // kalıcı
     const ts = this.TILE;
@@ -895,12 +1078,7 @@ class MainScene extends Phaser.Scene {
     this._respawn.set(key, evt);
   }
 
-  randInt(a, b) {
-    return Math.floor(Math.random() * (b - a + 1)) + a;
-  }
-
   /* ---------------- PLAYER TEXTURES ---------------- */
-
   makePlayerTextures() {
     const w = 12, h = 16;
 
@@ -963,15 +1141,25 @@ class MainScene extends Phaser.Scene {
   }
 
   /* ---------------- UPDATE ---------------- */
-
   update() {
-    // Hold progress + spinner güncelle
+    // (3) Yakınlık ipucu kontrolü
+    const nearby = this.getHarvestTarget();
+    if (nearby && !this.harvestHold) {
+      const ts = this.TILE;
+      const cx = (nearby.x * ts) + ts / 2;
+      const cy = (nearby.y * ts) + ts / 2;
+      this.interactHint.setPosition(cx, cy - 18);
+      this.interactHint.setVisible(true);
+    } else {
+      this.interactHint.setVisible(false);
+    }
+
+    // Hold progress + spinner
     if (this.harvestHold) {
       const t = this.time.now - this.harvestHold.startTime;
       const p = Phaser.Math.Clamp(t / this.HARVEST_HOLD_MS, 0, 1);
       this.holdFill.width = Math.floor(120 * p);
 
-      // Oyuncunun üstünde dönen halka
       this.harvestIndicator.x = this.player.x;
       this.harvestIndicator.y = this.player.y - 18;
 
@@ -993,6 +1181,7 @@ class MainScene extends Phaser.Scene {
       }
     }
 
+    // Movement
     const left  = this.cursors.left.isDown  || this.keys.A.isDown;
     const right = this.cursors.right.isDown || this.keys.D.isDown;
     const up    = this.cursors.up.isDown    || this.keys.W.isDown;
@@ -1031,8 +1220,14 @@ class MainScene extends Phaser.Scene {
       this.player.anims.play(`idle_${this.player.lastDir}`, true);
     }
   }
+
+  /* ---------------- UTILS ---------------- */
+  randInt(a, b) {
+    return Math.floor(Math.random() * (b - a + 1)) + a;
+  }
 }
 
+/* ---------------- BOOT ---------------- */
 const config = {
   type: Phaser.AUTO,
   backgroundColor: "#0b0f14",
