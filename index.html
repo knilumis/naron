@@ -1,16 +1,19 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>NARON</title>
-  <style>
-    html, body { margin: 0; height: 100%; background: #0b0f14; overflow: hidden; }
-    canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NARON RPG</title>
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
+  <div id="game-root"></div>
+  <div class="hud-actions">
+    <button id="map-toggle" class="hud-action-btn" type="button">HARITA (M)</button>
+    <button id="inv-toggle" class="hud-action-btn" type="button">ENVANTER (I)</button>
+    <button id="quest-toggle" class="hud-action-btn" type="button">GOREVLER (Q)</button>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-  <script src="game.js?v=1"></script>
+  <script src="game.js?v=23"></script>
 </body>
 </html>
